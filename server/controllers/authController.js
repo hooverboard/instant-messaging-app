@@ -47,25 +47,42 @@ const loginUser = async (req, res) => {
     return res.status(400).json({ message: "Todos campos sao obrigatórios" });
   }
 
-  // checar se o usuario existe
-  const userExists = await User.findOne({ email });
+  try {
+    // checar se o usuario existe
+    const userExists = await User.findOne({ email });
 
-  if (userExists) {
+    if (!userExists) {
+      return res.status(404).json({ message: "Usuario nao encontrado" });
+    }
+
     // checar se a senha esta correta
     if (userExists.password !== password) {
       return res.status(400).json({ message: "Senha incorreta" });
     }
-    jwt.sign(
-      { id: userExists._id, email: userExists.email },
-      process.env.JWT_SECRET,
-      { expiresIn: "1h" },
-      (err, token) => {
-        if (err) throw err;
-        res
-          .cookie("token", token, { httpOnly: true })
-          .json({ message: "Login bem sucedido" });
-      }
-    );
+
+    // criar token
+    const token = jwt.sign({ userId: userExists._id }, process.env.JWT_SECRET, {
+      expiresIn: "7d",
+    });
+
+    // enviar resposta com cookie
+    return res
+      .cookie("token", token, {
+        httpOnly: true,
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      })
+      .status(200)
+      .json({
+        message: "Login bem sucedido",
+        user: {
+          id: userExists._id,
+          name: userExists.name,
+          email: userExists.email,
+        },
+      });
+  } catch (error) {
+    console.log("Error logging in: ", error);
+    return res.status(500).json({ message: "Erro ao fazer login" });
   }
 };
 
